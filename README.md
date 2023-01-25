@@ -1,25 +1,10 @@
-# Topic: RMarkdown-Template
+# Topic: Optimist Score by Flipside
 
-For any reproducible analysis using this template please follow the provided format.
+[Optimism](https://www.optimism.io/) is a L2 EVM Blockchain using Optimistic rollups as its scaling solution. Optimism's native token, OP, was launched in May of 2022. 
 
-1.  2-3 sentence summary of the analysis.
-2.  Link to both the general research site & specific report on that research site. A markdown example is provided to show how to link using `[]()` syntax. Details on how to update the research site are available [at its repo](https://github.com/FlipsideCrypto/research).
+Late in 2022, Optimism Foundation approached Flipside, requesting that Flipside contriubute to their new [Attestation Station](https://community.optimism.io/docs/governance/attestation-station/). The idea being that users should be able to attest to their on or off chain behaviors to an on-chain contract in a peer-to-peer manner. 
 
-`For a deeper dive into the context, you can check out the report on our [research site](https://science.flipsidecrypto.xyz/research/) at [bonk-post-mortem](https://science.flipsidecrypto.xyz/bonk-post-mortem/).`
-
-3.  Link to the email sized version of the analysis on the flipside beehiiv. A markdown example is provided showing how to use the `[]()` syntax and identify the beehiiv site. To add content to the beehiiv site, please contact the beehiiv admin to get added as an org member.
-
-`If you aren't interested in code and want the shortest summary of the situation, you can check out the email sized [bonk-post-mortem](https://flipsidecrypto.beehiiv.com/p/bonk-post-mortem) on our research beehiiv and subscribe to get (summaries of) the best crypto research direct to your inbox.`
-
-4.  Keep the Reproduce Analysis section (confirm links work) with the shroomDK and renv subheaders. Confirm your analysis is reproducible by using renv and that any SQL code you used to pull data is provided and accessible via shroomDK. For Python analysis use `pyenv` and `pip install shroomdk` and swap out any R details for Python ones.
-
-5.  Update the instructions section.
-
--   To keep code bases uniform, please use `readLines('api_key.txt')` to access your api key within code and ensure gitignore files are consistently able to keep API Keys off github.
-
--   Use R Projects & renv to ensure portability across directories and operating systems.
-
--   For analysis across multiple files; either provide a single .Rmd file that accesses those files in order or explicitly detail what order .R files should be run in.
+In response to this request, Flipside created the [Optimist Score](https://science.flipsidecrypto.xyz/optimist/) as a way to attest to an address' on-chain behaviors. With minimal marketing for this tool, Flipside recieved over 30,000 attestations. We want to take a look at what motivated this many people to use a very simple attestation tool!
 
 # Reproduce Analysis
 
