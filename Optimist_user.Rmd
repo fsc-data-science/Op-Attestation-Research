@@ -1,0 +1,99 @@
+---
+title: " When 46K Optimism Users Use Your App For No Reason "
+author: " Graham Onders "
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    css: "styles.css"
+    includes:
+      in_header: header.html
+    code_folding: hide
+    toc: true
+    toc_float: true
+editor_options: 
+  chunk_output_type: console
+---
+
+FlipsideCrypto's Research is open source. Check out all the code for this report [here](https://github.com/fsc-data-science/Op-Attestation-Research) on github.
+
+# Intro
+
+Late in 2022, Optimism Foundation approached Flipside, requesting that Flipside contribute to their new [Attestation Station](https://community.optimism.io/docs/governance/attestation-station/). The idea being that users should be able to attest to their on or off chain behaviors to an on-chain contract in a peer-to-peer manner. This will help addresses to attest to their actions, building an on-chain reputation or identity!
+
+In response to this request, Flipside created the [Optimist Score](https://science.flipsidecrypto.xyz/optimist/) as a way to attest to an address' specific on-chain behaviors. With minimal marketing for this tool, Flipside recieved over 45,000 attestations. 
+
+Many of these attestations can be attributed to hype around an Optimism airdrop, that doesn't exist (yet...). However, even the slightest non-hint of an airdrop will get tens of thousands of people to do things on chain. 
+How can this power be used to benefit a protocol?
+
+Lets take a look at Flipside's Optimism attestion score and see what type of addresses are attesting on chain!
+
+# Optimist Users
+
+```{r, warning = FALSE, message = FALSE}
+library(shroomDK)
+library(reactable)
+library(ggplot2)
+library(plotly)
+library(lubridate)
+library(dplyr)
+optimist_users_query <- {
+  "
+with base as (
+select *,
+regexp_substr_all(SUBSTR(DATA, 3, len(DATA)), '.{64}') AS segmented_data
+from optimism.core.fact_event_logs
+where block_timestamp > '2022-12-14'
+and block_timestamp < '2023-01-31'
+and contract_address = '0xee36eaad94d1cc1d0eccadb55c38bffb6be06c77' 
+and topics[0]::string = '0x28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d85'
+),
+decoded_data as (
+select
+block_number,
+block_timestamp,
+tx_hash,
+origin_from_address,
+origin_to_address,
+event_index,
+CONCAT('0x', SUBSTR(topics [1] :: STRING, 27, 40)) AS creator,
+CONCAT('0x', SUBSTR(topics [2] :: STRING, 27, 40)) AS about,
+replace(topics [3] :: STRING,'0x','') as key,
+try_hex_decode_string(key::string) as decoded_key,
+substr(data::string,131,(ethereum.public.udf_hex_to_int(segmented_data[1]::string) * 2)) as val,
+try_hex_decode_string(val::string) as val_text
+from base
+)
+
+select
+  date(block_timestamp) as date,
+  origin_to_address,
+  count(distinct tx_hash) as num_attestations,
+  count(distinct about) as num_unique_attestation_addresses,
+  num_attestations - num_unique_attestation_addresses as num_duplicate_attestations
+from decoded_data
+where origin_to_address = '0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b'
+group by 1,2
+having num_attestations > 5
+  "
+}
+optimist_users <- auto_paginate_query(optimist_users_query, api_key = readLines("api_key.txt"))
+
+```
+
+Looking at all Optimist attestors between December 14, 2022 (date of launch) and January 30, 2023 (date of analysis), there have been `r format(sum(optimist_users$NUM_ATTESTATIONS), big.mark=",")` attestations!
+
+
+```{r, warning = FALSE, message = FALSE}
+plot_ly(data = optimist_users[order(optimist_users$DATE),], 
+        x = ~as.Date(DATE), 
+        y = ~NUM_ATTESTATIONS,
+        type = "scatter", 
+        mode = "lines",
+        line = list(color = '#FF5517')) %>% 
+  layout(
+    title = "Number of Attestations Over Time",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "Number Attestations")
+  )
+```
+

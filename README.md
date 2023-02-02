@@ -2,9 +2,9 @@
 
 [Optimism](https://www.optimism.io/) is a L2 EVM Blockchain using Optimistic rollups as its scaling solution. Optimism's native token, OP, was launched in May of 2022. 
 
-Late in 2022, Optimism Foundation approached Flipside, requesting that Flipside contriubute to their new [Attestation Station](https://community.optimism.io/docs/governance/attestation-station/). The idea being that users should be able to attest to their on or off chain behaviors to an on-chain contract in a peer-to-peer manner. 
+Late in 2022, Optimism Foundation approached Flipside, requesting that Flipside contribute to their new [Attestation Station](https://community.optimism.io/docs/governance/attestation-station/). The idea being that users should be able to attest to their on or off chain behaviors to an on-chain contract in a peer-to-peer manner. 
 
-In response to this request, Flipside created the [Optimist Score](https://science.flipsidecrypto.xyz/optimist/) as a way to attest to an address' on-chain behaviors. With minimal marketing for this tool, Flipside recieved over 30,000 attestations. We want to take a look at what motivated this many people to use a very simple attestation tool!
+In response to this request, Flipside created the [Optimist Score](https://science.flipsidecrypto.xyz/optimist/) as a way to attest to an address' on-chain behaviors. With minimal marketing for this tool, Flipside received over 30,000 attestations. We want to take a look at what motivated this many people to use a very simple attestation tool!
 
 # Reproduce Analysis
 
