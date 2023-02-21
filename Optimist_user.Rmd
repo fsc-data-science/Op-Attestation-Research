@@ -97,3 +97,282 @@ plot_ly(data = optimist_users[order(optimist_users$DATE),],
   )
 ```
 
+What caused all of these users to want to use our attestation tool? Lets dive into what drove users! 
+
+## How is Flipside's tool different than others
+
+When we look at Flipside's attestation tool, there are a few separating factors that set us apart from other Optimism attestation tools: 
+
+1. Flipside's attestation tool was the first (and only for awhile) with the ability to put your score on-chain. Flipside built a smart contract that was able to interact with Optimism's attestation contract, allowing for users to attest to their score on-chain!
+2. Our attestation tool supported wallet connect. This means that the score we were giving users was provable and had metrics based on that address's on chain activity. It wasn't just a random number.
+3. Flipside has some experience with picking scoring users based on on-chain activities with our [hop airdrop review](https://science.flipsidecrypto.xyz/hopdrop/hopdrop.html), [eth timecard](https://science.flipsidecrypto.xyz/eth-timecard/), [lunatics score](https://science.flipsidecrypto.xyz/lunatics/), [terrascored](https://science.flipsidecrypto.xyz/terrascored/) and others. 
+
+## What kind of marketing did Flipside do?
+
+Building this tool, we didn't have very many expectations. It was more of a prototype for an on-chain scoring method. We were flexing our smart contract development skills and wanted to parter with Optimism in a fun way. The only real marketing that this app received was through Optimism's weekly [twitter thread](https://twitter.com/optimismFND/status/1603437484603490305) where their Attestation Station was announced and Flipside received a nice shout out for our new tool! 
+
+Our attestation tool also was added to their [docs](https://community.optimism.io/docs/governance/attestation-station/#general-faq) as one of the products that is built on the Attestation Station. 
+
+
+## What's up with the spikes in activity?
+
+If you look at the attestation activity graph above, you may be wondering - what caused the three very clear spikes in activity? It couldn't all be from the initial twitter thread?
+
+The first spike on December 16th was, in fact, due to the initial Optimism announcement on [Twitter](https://twitter.com/optimismFND/status/1603437484603490305). Users were excited about the new product, and we were really the only product that supported on chain attestations!
+
+However, excitement dwindled and attestations tapered off until early January when a new attestation tool was created. 
+
+On January 6th, Clique created their own twitter/social [attestation tool](https://clique.social/attestor/opattestor). This came in tandem with another Optimism announcement [via twitter](https://twitter.com/optimismFND/status/1611436116925681688). 
+
+```{r, warning = FALSE, message = FALSE}
+library(shroomDK)
+library(reactable)
+library(ggplot2)
+library(plotly)
+library(lubridate)
+library(dplyr)
+optimist_users_query <- {
+  "
+with base as (
+select *,
+regexp_substr_all(SUBSTR(DATA, 3, len(DATA)), '.{64}') AS segmented_data
+from optimism.core.fact_event_logs
+where block_timestamp > '2022-12-14'
+and block_timestamp < '2023-01-31'
+and contract_address = '0xee36eaad94d1cc1d0eccadb55c38bffb6be06c77' 
+and topics[0]::string = '0x28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d85'
+),
+decoded_data as (
+select
+block_number,
+block_timestamp,
+tx_hash,
+origin_from_address,
+origin_to_address,
+event_index,
+CONCAT('0x', SUBSTR(topics [1] :: STRING, 27, 40)) AS creator,
+CONCAT('0x', SUBSTR(topics [2] :: STRING, 27, 40)) AS about,
+replace(topics [3] :: STRING,'0x','') as key,
+try_hex_decode_string(key::string) as decoded_key,
+substr(data::string,131,(ethereum.public.udf_hex_to_int(segmented_data[1]::string) * 2)) as val,
+try_hex_decode_string(val::string) as val_text
+from base
+)
+
+select
+  date(block_timestamp) as date,
+  case when origin_to_address = '0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b' then 'Flipside' 
+  when origin_to_address = '0xd34a8775d06d41b36054d59ef2d09a79b7aa1fa2' then 'Clique'
+  else 'Other' end as origin_to_address,
+  count(distinct tx_hash) as num_attestations,
+  count(distinct about) as num_unique_attestation_addresses,
+  num_attestations - num_unique_attestation_addresses as num_duplicate_attestations
+from decoded_data
+group by 1,2
+having num_attestations > 5
+  "
+}
+All_optimist_users <- auto_paginate_query(optimist_users_query, api_key = readLines("api_key.txt"))
+
+```
+
+We can see our attestations grow along side of Clique's. 
+
+In fact we can see the correlation if we overlay the activity of Clique with Flipside!
+
+```{r, warning = FALSE, message = FALSE}
+plot_ly(data = All_optimist_users[order(All_optimist_users$DATE),], 
+        x = ~as.Date(DATE), 
+        y = ~NUM_ATTESTATIONS,
+        type = "scatter", 
+        color = ~ORIGIN_TO_ADDRESS,
+        mode = "lines") %>% 
+  layout(
+    title = "Number of Attestations Over Time",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "Number Attestations")
+  )
+```
+
+
+We can see users of the flipside attestation tool spike alongside the clique attestations! 
+
+
+The third spike can be attributed to airdrop hype. There was a lot of speculuation for a second Optimism airdrop and large twitter accounts such as [airdrop inspector](https://twitter.com/airdropinspect) and [AirdropDetective](https://twitter.com/AirdropDet) announced that utilization of the attestation station would lead to a larger airdrop.
+
+
+# What Kind of Users Attributed to Flipsides Attestation Tool
+
+Since our attestation tool is based on on-chain activity and allows for the user to attest to their score on-chain, we can take a look at the type of wallets that attested and their individual behaviors!
+
+
+## Duplicate addresses
+
+We did get a surprisingly large number of attestations to our tool, so naturally we should check the addresses that attested to be sure that we were getting real addresses, and that we weren't getting botted with duplicate attestations. 
+
+```{r, warning = FALSE, message = FALSE}
+library(shroomDK)
+library(reactable)
+library(ggplot2)
+library(plotly)
+library(lubridate)
+library(dplyr)
+full_attestation_table_query <- {
+  "
+with base as (
+select *,
+regexp_substr_all(SUBSTR(DATA, 3, len(DATA)), '.{64}') AS segmented_data
+from optimism.core.fact_event_logs
+where block_timestamp > '2022-12-14'
+and block_timestamp < '2023-01-31'
+and contract_address = '0xee36eaad94d1cc1d0eccadb55c38bffb6be06c77' 
+and topics[0]::string = '0x28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d85'
+),
+decoded_data as (
+select
+block_number,
+block_timestamp,
+tx_hash,
+origin_from_address,
+origin_to_address,
+event_index,
+CONCAT('0x', SUBSTR(topics [1] :: STRING, 27, 40)) AS creator,
+CONCAT('0x', SUBSTR(topics [2] :: STRING, 27, 40)) AS about,
+replace(topics [3] :: STRING,'0x','') as key,
+try_hex_decode_string(key::string) as decoded_key,
+substr(data::string,131,(ethereum.public.udf_hex_to_int(segmented_data[1]::string) * 2)) as val,
+try_hex_decode_string(val::string) as val_text
+from base
+)
+
+select
+  origin_to_address,
+  decoded_key as attestation_address_name,
+  count(*) as num_attestations,
+  count(distinct about) as num_unique_attestation_addresses,
+  num_attestations - num_unique_attestation_addresses as num_duplicate_attestations
+from decoded_data
+where origin_to_address in ('0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b', '0xd34a8775d06d41b36054d59ef2d09a79b7aa1fa2')
+group by 1,2
+having num_attestations > 5
+order by 3 desc
+  "
+}
+full_attestation_table <- auto_paginate_query(full_attestation_table_query, api_key = readLines("api_key.txt"))
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, results = 'asis'}
+library(knitr)
+kable(full_attestation_table, format = 'markdown', caption = "Total Attestations Table")
+```
+
+
+When looking at the table above we can see that Flipside did in fact receive quite a few duplicate attestations (almost 9K of our 45K attesations: ~20% of Total), while Clique only received about 500. 
+
+Over time, we can see how duplicates change over time. There isn't any significant change to duplicate submissions. Fairly consistent at about 20%, which is good - demonstrating consistent usage behaviors over time!
+```{r, warning = FALSE, message = FALSE}
+library(shroomDK)
+library(reactable)
+library(ggplot2)
+library(plotly)
+library(lubridate)
+library(dplyr)
+duplicates_overtime_query <- {
+  "
+with base as (
+select *,
+regexp_substr_all(SUBSTR(DATA, 3, len(DATA)), '.{64}') AS segmented_data
+from optimism.core.fact_event_logs
+where block_timestamp > '2022-12-14'
+and block_timestamp < '2023-01-31'
+and contract_address = '0xee36eaad94d1cc1d0eccadb55c38bffb6be06c77' 
+and topics[0]::string = '0x28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d85'
+),
+decoded_data as (
+select
+block_number,
+block_timestamp,
+tx_hash,
+origin_from_address,
+origin_to_address,
+event_index,
+CONCAT('0x', SUBSTR(topics [1] :: STRING, 27, 40)) AS creator,
+CONCAT('0x', SUBSTR(topics [2] :: STRING, 27, 40)) AS about,
+replace(topics [3] :: STRING,'0x','') as key,
+try_hex_decode_string(key::string) as decoded_key,
+substr(data::string,131,(ethereum.public.udf_hex_to_int(segmented_data[1]::string) * 2)) as val,
+try_hex_decode_string(val::string) as val_text
+from base
+),
+base_duplicates as (
+  select
+  distinct 
+  block_timestamp,
+  about as address,
+  origin_to_address,
+  val,
+  row_number() over (partition by about,origin_to_address order by block_timestamp asc) as attestation_number,
+  lag(block_timestamp,1) over (partition by about,origin_to_address order by block_timestamp asc) as date_diff
+from decoded_data
+where origin_to_address in ('0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b')
+)
+select distinct block_timestamp,
+address,
+origin_to_address,
+val,
+attestation_number,
+date_diff,
+case when attestation_number = 1 then 'first_attestation'
+when attestation_number > 1 then 'duplicate_attestation'
+end as attestation_type,
+datediff(minute,date_diff,block_timestamp) as time_between_attests,
+date(block_timestamp) as dates,
+1 as temp_val
+from base_duplicates
+order by 2,5 asc
+  "
+}
+duplicates_overtime_table <- auto_paginate_query(duplicates_overtime_query, api_key = readLines("api_key.txt"))
+```
+
+```{r, warning = FALSE, message = FALSE}
+plot_ly(data = duplicates_overtime_table[order(duplicates_overtime_table$DATES),], 
+        x = ~as.Date(DATES), 
+        y = ~ATTESTATION_TYPE,
+        type = "bar") %>% 
+  layout(
+    title = "Number of Attestations Over Time",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "Number Attestations"),
+    barmode = 'stack'
+  )
+```
+
+aggregate(. ~ ATTESTATION_TYPE, data = duplicates_overtime_table, FUN = sum)
+duplicates_overtime_table
+
+
+But is this a bad thing? Not necessarily, our Optimism attestation tool is designed to give a higher score if a user has done specific things on chain. In this manner it would incentivize users to do more on chain and return to the tool, attesting to a higher score than previously!
+
+Let's take a look at some of these usage trends!
+
+## Retattestation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
