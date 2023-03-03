@@ -16,6 +16,17 @@ editor_options:
 
 FlipsideCrypto's Research is open source. Check out all the code for this report [here](https://github.com/fsc-data-science/Op-Attestation-Research) on github.
 
+```{r, warning = FALSE, message = FALSE}
+# Libraries
+library(shroomDK)
+library(reactable)
+library(ggplot2)
+library(plotly)
+library(lubridate)
+library(dplyr)
+library(knitr)
+```
+
 # Intro
 
 Late in 2022, Optimism Foundation approached Flipside, requesting that Flipside contribute to their new [Attestation Station](https://community.optimism.io/docs/governance/attestation-station/). The idea being that users should be able to attest to their on or off chain behaviors to an on-chain contract in a peer-to-peer manner. This will help addresses to attest to their actions, building an on-chain reputation or identity!
@@ -30,12 +41,7 @@ Lets take a look at Flipside's Optimism attestion score and see what type of add
 # Optimist Users
 
 ```{r, warning = FALSE, message = FALSE}
-library(shroomDK)
-library(reactable)
-library(ggplot2)
-library(plotly)
-library(lubridate)
-library(dplyr)
+
 optimist_users_query <- {
   "
 with base as (
@@ -125,12 +131,7 @@ However, excitement dwindled and attestations tapered off until early January wh
 On January 6th, Clique created their own twitter/social [attestation tool](https://clique.social/attestor/opattestor). This came in tandem with another Optimism announcement [via twitter](https://twitter.com/optimismFND/status/1611436116925681688). 
 
 ```{r, warning = FALSE, message = FALSE}
-library(shroomDK)
-library(reactable)
-library(ggplot2)
-library(plotly)
-library(lubridate)
-library(dplyr)
+
 optimist_users_query <- {
   "
 with base as (
@@ -211,12 +212,7 @@ Since our attestation tool is based on on-chain activity and allows for the user
 We did get a surprisingly large number of attestations to our tool, so naturally we should check the addresses that attested to be sure that we were getting real addresses, and that we weren't getting botted with duplicate attestations. 
 
 ```{r, warning = FALSE, message = FALSE}
-library(shroomDK)
-library(reactable)
-library(ggplot2)
-library(plotly)
-library(lubridate)
-library(dplyr)
+
 full_attestation_table_query <- {
   "
 with base as (
@@ -262,7 +258,6 @@ full_attestation_table <- auto_paginate_query(full_attestation_table_query, api_
 ```
 
 ```{r echo = FALSE, warning = FALSE, message = FALSE, results = 'asis'}
-library(knitr)
 kable(full_attestation_table, format = 'markdown', caption = "Total Attestations Table")
 ```
 
@@ -271,12 +266,7 @@ When looking at the table above we can see that Flipside did in fact receive qui
 
 Over time, we can see how duplicates change over time. There isn't any significant change to duplicate submissions. Fairly consistent at about 20%, which is good - demonstrating consistent usage behaviors over time!
 ```{r, warning = FALSE, message = FALSE}
-library(shroomDK)
-library(reactable)
-library(ggplot2)
-library(plotly)
-library(lubridate)
-library(dplyr)
+
 duplicates_overtime_query <- {
   "
 with base as (
