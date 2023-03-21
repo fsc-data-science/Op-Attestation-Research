@@ -25,6 +25,7 @@ library(plotly)
 library(lubridate)
 library(dplyr)
 library(knitr)
+library(data.table)
 ```
 
 # Intro
@@ -209,8 +210,6 @@ Since our attestation tool is based on on-chain activity and allows for the user
 
 ## Duplicate addresses
 
-We did get a surprisingly large number of attestations to our tool, so naturally we should check the addresses that attested to be sure that we were getting real addresses, and that we weren't getting botted with duplicate attestations. 
-
 ```{r, warning = FALSE, message = FALSE}
 
 full_attestation_table_query <- {
@@ -257,8 +256,8 @@ order by 3 desc
 full_attestation_table <- auto_paginate_query(full_attestation_table_query, api_key = readLines("api_key.txt"))
 ```
 
-```{r echo = FALSE, warning = FALSE, message = FALSE, results = 'asis'}
-kable(full_attestation_table, format = 'markdown', caption = "Total Attestations Table")
+```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+reactable(full_attestation_table)
 ```
 
 
@@ -325,44 +324,295 @@ order by 2,5 asc
 duplicates_overtime_table <- auto_paginate_query(duplicates_overtime_query, api_key = readLines("api_key.txt"))
 ```
 
+
+
 ```{r, warning = FALSE, message = FALSE}
-plot_ly(data = duplicates_overtime_table[order(duplicates_overtime_table$DATES),], 
-        x = ~as.Date(DATES), 
-        y = ~ATTESTATION_TYPE,
+duplicates_overtime_table_grouped = duplicates_overtime_table %>%
+  group_by(DATES, ATTESTATION_TYPE) %>%
+  summarise(count = n_distinct(ADDRESS))
+setDT(duplicates_overtime_table_grouped)
+
+plot_ly(data = duplicates_overtime_table_grouped[order(duplicates_overtime_table_grouped$DATES),], 
+        x = ~DATES, 
+        y = ~count,
+        split = ~ATTESTATION_TYPE,
         type = "bar") %>% 
   layout(
-    title = "Number of Attestations Over Time",
+    title = "Duplicate Attestation Percent Over Time",
     xaxis = list(title = "Date"),
-    yaxis = list(title = "Number Attestations"),
-    barmode = 'stack'
+    yaxis = list(title = "% Attestations"),
+    barmode = 'stack',
+    barnorm = 'percent'
   )
 ```
 
-aggregate(. ~ ATTESTATION_TYPE, data = duplicates_overtime_table, FUN = sum)
-duplicates_overtime_table
 
-
-But is this a bad thing? Not necessarily, our Optimism attestation tool is designed to give a higher score if a user has done specific things on chain. In this manner it would incentivize users to do more on chain and return to the tool, attesting to a higher score than previously!
+But is this a bad thing? Not necessarily, our Optimism attestation tool is designed to give a higher score if a user has done specific things on chain. This would incentivize users to do more on chain and return to the tool, attesting to a higher score than previously!
 
 Let's take a look at some of these usage trends!
 
 ## Retattestation
 
+```{r, warning = FALSE, message = FALSE}
+
+reattestation_query <- {
+  "
+with base as (
+select *,
+regexp_substr_all(SUBSTR(DATA, 3, len(DATA)), '.{64}') AS segmented_data
+from optimism.core.fact_event_logs
+where block_timestamp > '2022-12-14'
+and block_timestamp < '2023-01-31'
+and contract_address = '0xee36eaad94d1cc1d0eccadb55c38bffb6be06c77' 
+and topics[0]::string = '0x28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d85'
+),
+decoded_data as (
+select
+block_number,
+block_timestamp,
+tx_hash,
+origin_from_address,
+origin_to_address,
+event_index,
+CONCAT('0x', SUBSTR(topics [1] :: STRING, 27, 40)) AS creator,
+CONCAT('0x', SUBSTR(topics [2] :: STRING, 27, 40)) AS about,
+replace(topics [3] :: STRING,'0x','') as key,
+try_hex_decode_string(key::string) as decoded_key,
+substr(data::string,131,(ethereum.public.udf_hex_to_int(segmented_data[1]::string) * 2)) as val,
+try_hex_decode_string(val::string) as val_text
+from base
+),
+base_duplicates as (
+  select
+  distinct 
+  block_timestamp,
+  about as address,
+  origin_to_address,
+  val,
+  row_number() over (partition by about,origin_to_address order by block_timestamp asc) as attestation_number,
+  lag(block_timestamp,1) over (partition by about,origin_to_address order by block_timestamp asc) as date_diff,
+  lag(val,1) over (partition by about,origin_to_address order by block_timestamp asc) as val_diff
+from decoded_data
+where origin_to_address in ('0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b')
+)
+select 
+distinct
+attestation_number,
+count(address) as number_of_addresses,
+avg(datediff(minute,date_diff,block_timestamp)) as avg_time_between_attests,
+median(datediff(minute,date_diff,block_timestamp)) as med_time_between_attests,
+avg(val-val_diff) as avg_diff_in_scores,
+median(val-val_diff) as med_diff_in_scores
+from base_duplicates
+group by 1
+order by 1 asc
+  "
+}
+reattestation_table <- auto_paginate_query(reattestation_query, api_key = readLines("api_key.txt"))
+```
+
+```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+# cat(reattestation_breakout_table) # output the table in a format good for HTML/PDF/docx conversion
+reactable(reattestation_table)
+```
+
+If we look at reattestations over time, we see that, on average, people who come back to reattest get a higher score by .2 points! this is an encouraging finding because, while there are people who are spamming/botting the attestation, users were incentivised to return to the app and reattest with a higher score after using Optimism in a new way! 
+
+This finding is even further emphasized if we split out the spammers/bots from the non spammers/bots
+
+
+```{r, warning = FALSE, message = FALSE}
+
+reattestation_breakout_query <- {
+  "
+with base as (
+select *,
+regexp_substr_all(SUBSTR(DATA, 3, len(DATA)), '.{64}') AS segmented_data
+from optimism.core.fact_event_logs
+where block_timestamp > '2022-12-14'
+and block_timestamp < '2023-01-31'
+and contract_address = '0xee36eaad94d1cc1d0eccadb55c38bffb6be06c77' 
+and topics[0]::string = '0x28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d85'
+),
+decoded_data as (
+select
+block_number,
+block_timestamp,
+tx_hash,
+origin_from_address,
+origin_to_address,
+event_index,
+CONCAT('0x', SUBSTR(topics [1] :: STRING, 27, 40)) AS creator,
+CONCAT('0x', SUBSTR(topics [2] :: STRING, 27, 40)) AS about,
+replace(topics [3] :: STRING,'0x','') as key,
+try_hex_decode_string(key::string) as decoded_key,
+substr(data::string,131,(ethereum.public.udf_hex_to_int(segmented_data[1]::string) * 2)) as val,
+try_hex_decode_string(val::string) as val_text
+from base
+),
+base_duplicates as (
+  select
+  distinct 
+  block_timestamp,
+  about as address,
+  origin_to_address,
+  val,
+  row_number() over (partition by about,origin_to_address order by block_timestamp asc) as attestation_number,
+  lag(block_timestamp,1) over (partition by about,origin_to_address order by block_timestamp asc) as date_diff,
+  lag(val,1) over (partition by about,origin_to_address order by block_timestamp asc) as val_diff
+from decoded_data
+where origin_to_address in ('0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b')
+)
+select 
+distinct
+case when datediff(minute,date_diff,block_timestamp) < 720 then 'Quick Attest'
+  when datediff(minute,date_diff,block_timestamp) >= 720 then 'Patient Attest'
+  else 'First Attestation'
+end as attestation_type,
+attestation_number,
+count(address) as number_of_addresses,
+avg(datediff(minute,date_diff,block_timestamp)) as avg_time_between_attests,
+median(datediff(minute,date_diff,block_timestamp)) as med_time_between_attests,
+avg(val-val_diff) as avg_diff_in_scores,
+median(val-val_diff) as med_diff_in_scores
+from base_duplicates
+group by 1,2
+order by 1,2 asc
+
+  "
+}
+reattestation_breakout_table <- auto_paginate_query(reattestation_breakout_query, api_key = readLines("api_key.txt"))
+```
+
+```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+# cat(reattestation_breakout_table) # output the table in a format good for HTML/PDF/docx conversion
+reactable(reattestation_breakout_table)
+```
+In this table, we define a patient attestor as someone who waited at least 12 hours before reattesting to our contract, and a quick attestor as someone who does not. 
+
+With this simple split, we can see the patient attestor increase their score by almost .5 and the quick attestor almost 0! Almost half of the patient attestors increased their score! With 2,700 reattesting after 12 hours, and half getting a higher score - this tool has driven some real traffic to new protocols!
+
+Did our fun on-chain scoring tool inadvertently convince thousands of people to start acting like conscientious blockchain users? 
 
 
 
+## User Type
+
+```{r, warning = FALSE, message = FALSE}
+
+User_type_query <- {
+  "
+               with base as (
+                 select *,
+                 regexp_substr_all(SUBSTR(DATA, 3, len(DATA)), '.{64}') AS segmented_data
+                 from optimism.core.fact_event_logs
+                 where block_timestamp > '2022-12-14'
+                 and block_timestamp < '2023-01-31'
+                 and contract_address = '0xee36eaad94d1cc1d0eccadb55c38bffb6be06c77' 
+                 and topics[0]::string = '0x28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d85'
+               ),
+               decoded_data as (
+                 select
+                 block_number,
+                 block_timestamp,
+                 tx_hash,
+                 origin_from_address,
+                 origin_to_address,
+                 event_index,
+                 CONCAT('0x', SUBSTR(topics [1] :: STRING, 27, 40)) AS creator,
+                 CONCAT('0x', SUBSTR(topics [2] :: STRING, 27, 40)) AS about,
+                 replace(topics [3] :: STRING,'0x','') as key,
+                 try_hex_decode_string(key::string) as decoded_key,
+                 substr(data::string,131,(ethereum.public.udf_hex_to_int(segmented_data[1]::string) * 2)) as val,
+                 try_hex_decode_string(val::string) as val_text
+                 from base
+               ),
+               base_duplicates as (
+                 select
+                 distinct 
+                 block_timestamp,
+                 about as address,
+                 origin_to_address,
+                 val,
+                 row_number() over (partition by about,origin_to_address order by block_timestamp asc) as attestation_number,
+                 lag(block_timestamp,1) over (partition by about,origin_to_address order by block_timestamp asc) as date_diff,
+                 lag(val,1) over (partition by about,origin_to_address order by block_timestamp asc) as val_diff
+                 from decoded_data
+                 where origin_to_address in ('0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b')
+               ),
+               core_tab as (
+               select 
+               distinct
+               a.address,
+               case when datediff(minute,date_diff,block_timestamp) < 720 then 'Quick Attest'
+               when datediff(minute,date_diff,block_timestamp) >= 720 then 'Patient Attest'
+               else 'First Attestation'
+               end as attestation_type,
+               b.tag_name,
+               c.ens_set,
+               d.date_first
+               from base_duplicates a
+               left join (select distinct address, tag_name from crosschain.core.address_tags 
+                  where blockchain= 'optimism'
+                  and creator = 'flipside'
+                  and tag_name = 'contract address') b
+                  on a.address = b.address
+               left join (select distinct owner as address, ens_set from crosschain.core.ez_ens where ENS_SET = 'Y') c
+                  on a.address = c.address
+              left join (select distinct from_address as address, min(block_timestamp) as date_first from OPTIMISM.CORE.FACT_TRANSACTIONS
+                        where address in (select distinct address from base_duplicates)
+                        group by 1) d
+                  on a.address = d.address
+               )
+               select 
+               attestation_type,
+               sum(case when ens_set = 'Y' then 1 else 0 end)/count(distinct address)*100 as ens_set_percent,
+               sum(case when tag_name is not null then 1 else 0 end)/ count(distinct address) * 100 as contract_address_percent,
+               avg(datediff(day,date_first,CURRENT_DATE)) avg_days_since_first_tx
+               from core_tab
+               group by 1
+
+  "
+}
+User_type_table <- auto_paginate_query(User_type_query, api_key = readLines("api_key.txt"))
+```
 
 
+```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+# cat(reattestation_breakout_table) # output the table in a format good for HTML/PDF/docx conversion
+colnames(User_type_table) = c('Attestation Type','ENS Set %', 'Contract Address %', 'Avg Days Since 1st Tx')
+reactable(User_type_table[order(User_type_table[['ENS Set %']]),])
+```
 
 
+Breaking out our users into the 3 groups: we can see that those who patiently reattest seem to be more active on the chain! They have the highest percentage of ENS set, and a higher number of days since their first transaction than those who quickly reattest. 
+
+A simple scoring app that had no promise of any reward for a higher score - caused users to be more active and conscientious on Optimism; moreover, a simple split such as time between reattestations created a very clear delineation between user groups. Something as simple as an on-chain scoring app could segment users into 'good' users and 'bad' users. 
 
 
+# Motivation
+
+Looking at the users who used our Optimist Scored app, its clear that there has to be some underlying motivation to want to use and come back to it. Despite our hard work, its probably not because 'the app is super cool'. 
+
+Looking at the big picture there are two reasons that stand out: Monetary reward and proof of action. 
+
+The first, monetary reward, is a big attractor for all types of users, because who doesn't like free stuff? Granted, this attracts airdrop farmers, bots, etc. that may not be the best types of users. It also attracts new users to a protocol. If i gave an address the option between two similar protocols, were one had the potential to airdrop all historical users some tokens, and the other did not. Users would be more inclined to use the first protocol. 
+
+In the case of our Attestation app, there was some circulation on twitter that the use of our scoring app would directly play a factor into the airdrop. While this isn't true, it motivated users to use the app, and some to return to the app with a higher score in hopes of a higher airdrop. 
+
+The second, proof of action, is a very important factor - that i think is often under appreciated. Our attestation contract allowed users to attest to their score on chain. 
+This means that there is proof that an address did certain actions, and elected to have their immortalized on chain. It is a bThis makes it easy for protocols to subset users based on scores - it also can help sybil detection algorythms to be more accurate with who is a bot and not. 
+
+Doing something on chain is one thing, doing something on chain and having proof that you did it is another. 
 
 
+# Conclusion
 
+Overall, this was a very successful experiment around on-chain scoring tools. In the end it seems that rewarding users, either through reputation or monetary gain, encourages users to be more active on chain. However, there is something to be said about having a multi-categoried score available to a user. An NFT maxi who uses an app similar to this and sees a 0 in categories such as governance or defi, may be incentivised to participate in those for the sole purpose of their address not being associated with a 0 score. 
 
+With these findings, we will continue to iterate on our scoring apps with ideas such as targeted recommendations for users, fun incentives, and direct goals. 
 
-
+More fun coming soon <sup>tm</sup>
 
 
 
