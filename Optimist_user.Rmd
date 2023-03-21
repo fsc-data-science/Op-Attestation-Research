@@ -1,6 +1,6 @@
 ---
-title: " When 46K Optimism Users Use Your App For No Reason "
-author: " Graham Onders "
+title: "When 46K Optimism Users Use Your App For No Reason"
+author: "Graham Onders"
 date: "`r Sys.Date()`"
 output:
   html_document:

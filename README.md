@@ -28,9 +28,9 @@ To replicate this analysis please do the following:
 
 1.  Clone this repo.
 2.  Save your API key into a .txt file as 'api_key.txt' (this exact naming allows the provided .gitignore to ignore your key and keep it off github).
-3.  Open the `R PROJECT NAME HERE` R Project file in your R IDE (we recommend, RStudio).
+3.  Open the `op-attestation-research` R Project file in your R IDE (we recommend, RStudio).
 4.  Confirm you have renv installed.
-5.  Restore the R environment using `renv::restore()` while in the `R PROJECT NAME HERE` R Project.
-6.  You can now run `SPECIFY .R FILE(s) and/or .Rmd FILE(s) HERE`
+5.  Restore the R environment using `renv::restore()` while in the `op-attestation-research` R Project.
+6.  You can now run `optimist_user.Rmd`
 
 If any errors arise, double check you have saved your API key in the expected file name and format.
