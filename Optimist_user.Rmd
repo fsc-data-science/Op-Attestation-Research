@@ -585,7 +585,9 @@ reactable(User_type_table[order(User_type_table[['ENS Set %']]),])
 ```
 
 
-Breaking out our users into the 3 groups: we can see that those who patiently reattest seem to be more active on the chain! They have the highest percentage of ENS set, and a higher number of days since their first transaction than those who quickly reattest. 
+Breaking out our users into the 3 groups: we can see that those who patiently reattest seem to be more active on the chain! They have the highest percentage of ENS set, and a higher number of days since their first transaction than those who quickly reattest.
+
+It is also an interesting call-out that we had 0 contract addresses attest to our tool - even on behalf of an EOA.
 
 A simple scoring app that had no promise of any reward for a higher score - caused users to be more active and conscientious on Optimism; moreover, a simple split such as time between reattestations created a very clear delineation between user groups. Something as simple as an on-chain scoring app could segment users into 'good' users and 'bad' users. 
 
