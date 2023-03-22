@@ -103,7 +103,7 @@ flipside <- daily_attestations %>%
 
 ```
 
-Looking at all Optimist attestors between December 14, 2022 (date of launch) and January 30, 2023 (date of analysis), there have been `r format(sum(flipside$num_attestations), big.mark=",")` attestations!
+Looking at all Optimist attestors between December 15, 2022 (date of launch) and January 30, 2023 (date of analysis), there have been `r format(sum(flipside$num_attestations), big.mark=",")` attestations!
 
 
 ```{r, warning = FALSE, message = FALSE}
@@ -224,8 +224,14 @@ order by 3 desc
   "
 }
 
-full_attestation_table <- auto_paginate_query(full_attestation_table_query, 
-                                              api_key = readLines("api_key.txt"))
+
+# not run 
+# full_attestation_table <- auto_paginate_query(full_attestation_table_query, api_key = readLines("api_key.txt"))
+
+# provided pre-ran 
+full_attestation_table <- read.csv("full_attestation_table_data.csv",
+                               colClasses=c("ORIGIN_TO_ADDRESS"="character"))
+colnames(full_attestation_table) <- tolower(colnames(full_attestation_table))
 
 ```
 
@@ -296,7 +302,15 @@ from base_duplicates
 order by 2,5 asc
   "
 }
-duplicates_overtime_table <- auto_paginate_query(duplicates_overtime_query, api_key = readLines("api_key.txt"))
+
+# not run 
+# duplicates_overtime_table <- auto_paginate_query(duplicates_overtime_query, api_key = readLines("api_key.txt"))
+
+# provided pre-ran 
+duplicates_overtime_table <- read.csv("duplicates_over_time_data.csv",
+                               colClasses=c("ORIGIN_TO_ADDRESS"="character", 'ADDRESS' = 'character'))
+colnames(duplicates_overtime_table) <- tolower(colnames(duplicates_overtime_table))
+
 
 ```
 
@@ -305,18 +319,18 @@ duplicates_overtime_table <- auto_paginate_query(duplicates_overtime_query, api_
 ```{r, warning = FALSE, message = FALSE}
 
 duplicates_overtime_table_grouped <- duplicates_overtime_table %>%
-  group_by(DATES, ATTESTATION_TYPE) %>%
-  summarise(count = n_distinct(ADDRESS)) %>% 
-  arrange(DATES)
+  group_by(dates, attestation_type) %>%
+  summarise(count = n_distinct(address)) %>% 
+  arrange(dates)
 
 
 plot_ly(data = duplicates_overtime_table_grouped, 
-        x = ~DATES, 
+        x = ~dates, 
         y = ~count,
-        split = ~ATTESTATION_TYPE,
+        split = ~attestation_type,
         type = "bar") %>% 
   layout(
-    title = "Duplicate Attestation Percent Over Time",
+    title = list(text = "Duplicate Attestation Percent Over Time", y = 0.99),
     xaxis = list(title = "Date"),
     yaxis = list(title = "% Attestations"),
     barmode = 'stack',
@@ -387,7 +401,13 @@ group by 1
 order by 1 asc
   "
 }
-reattestation_table <- auto_paginate_query(reattestation_query, api_key = readLines("api_key.txt"))
+
+# not run 
+# reattestation_table <- auto_paginate_query(reattestation_query, api_key = readLines("api_key.txt"))
+
+# provided pre-ran 
+reattestation_table <- read.csv("reattestation_table_data.csv")
+colnames(reattestation_table) <- tolower(colnames(reattestation_table))
 
 ```
 
@@ -459,7 +479,15 @@ order by 1,2 asc
 
   "
 }
-reattestation_breakout_table <- auto_paginate_query(reattestation_breakout_query, api_key = readLines("api_key.txt"))
+
+# not run 
+# reattestation_breakout_table <- auto_paginate_query(reattestation_breakout_query, api_key = readLines("api_key.txt"))
+
+
+# provided pre-ran 
+reattestation_breakout_table <- read.csv("reattestation_table_breakout_data.csv")
+colnames(reattestation_breakout_table) <- tolower(colnames(reattestation_breakout_table))
+
 ```
 
 ```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
@@ -549,7 +577,12 @@ User_type_query <- {
 
   "
 }
-User_type_table <- auto_paginate_query(User_type_query, api_key = readLines("api_key.txt"))
+# not run 
+# User_type_table <- auto_paginate_query(User_type_query, api_key = readLines("api_key.txt"))
+
+# provided pre-ran 
+User_type_table <- read.csv("User_type_table_data.csv")
+
 ```
 
 
