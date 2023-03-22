@@ -24,8 +24,6 @@ library(ggplot2)
 library(plotly)
 library(lubridate)
 library(dplyr)
-library(knitr)
-library(data.table)
 ```
 
 # Intro
@@ -39,13 +37,11 @@ How can this power be used to benefit a protocol?
 
 Lets take a look at Flipside's Optimism attestion score and see what type of addresses are attesting on chain!
 
-# Optimist Users
-
 ```{r, warning = FALSE, message = FALSE}
 
-optimist_users_query <- {
+daily_query <- {
   "
-with base as (
+  with base as (
 select *,
 regexp_substr_all(SUBSTR(DATA, 3, len(DATA)), '.{64}') AS segmented_data
 from optimism.core.fact_event_logs
@@ -74,34 +70,55 @@ from base
 select
   date(block_timestamp) as date,
   origin_to_address,
+  case when origin_to_address = '0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b' then 'Flipside' 
+  when origin_to_address = '0xd34a8775d06d41b36054d59ef2d09a79b7aa1fa2' then 'Clique'
+  else 'Other' end as origin_to_labeled,
   count(distinct tx_hash) as num_attestations,
   count(distinct about) as num_unique_attestation_addresses,
   num_attestations - num_unique_attestation_addresses as num_duplicate_attestations
 from decoded_data
-where origin_to_address = '0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b'
 group by 1,2
-having num_attestations > 5
   "
 }
-optimist_users <- auto_paginate_query(optimist_users_query, api_key = readLines("api_key.txt"))
+
+# not run 
+# daily_attestations <- auto_paginate_query(daily_query, api_key = readLines("api_key.txt"))
+
+# provided pre-ran 
+daily_attestations <- read.csv("daily_attestations_data.csv",
+                               colClasses=c("ORIGIN_TO_ADDRESS"="character"))
+colnames(daily_attestations) <- tolower(colnames(daily_attestations))
+daily_attestations$date <- as.Date(daily_attestations$date, format = "%m/%d/%Y")
+
+daily_attestations <- daily_attestations[order(daily_attestations$date), ]
 
 ```
 
-Looking at all Optimist attestors between December 14, 2022 (date of launch) and January 30, 2023 (date of analysis), there have been `r format(sum(optimist_users$NUM_ATTESTATIONS), big.mark=",")` attestations!
+# Optimist Users
+
+```{r, warning = FALSE, message = FALSE}
+
+flipside <- daily_attestations %>% 
+  filter(origin_to_address == '0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b')
+
+```
+
+Looking at all Optimist attestors between December 14, 2022 (date of launch) and January 30, 2023 (date of analysis), there have been `r format(sum(flipside$num_attestations), big.mark=",")` attestations!
 
 
 ```{r, warning = FALSE, message = FALSE}
-plot_ly(data = optimist_users[order(optimist_users$DATE),], 
-        x = ~as.Date(DATE), 
-        y = ~NUM_ATTESTATIONS,
+plot_ly(data = flipside, 
+        x = ~date, 
+        y = ~num_attestations,
         type = "scatter", 
         mode = "lines",
         line = list(color = '#FF5517')) %>% 
   layout(
-    title = "Number of Attestations Over Time",
+    title = list(text = "Number of Attestations Over Time", y = 0.975),
     xaxis = list(title = "Date"),
     yaxis = list(title = "Number Attestations")
   )
+
 ```
 
 What caused all of these users to want to use our attestation tool? Lets dive into what drove users! 
@@ -131,66 +148,19 @@ However, excitement dwindled and attestations tapered off until early January wh
 
 On January 6th, Clique created their own twitter/social [attestation tool](https://clique.social/attestor/opattestor). This came in tandem with another Optimism announcement [via twitter](https://twitter.com/optimismFND/status/1611436116925681688). 
 
-```{r, warning = FALSE, message = FALSE}
-
-optimist_users_query <- {
-  "
-with base as (
-select *,
-regexp_substr_all(SUBSTR(DATA, 3, len(DATA)), '.{64}') AS segmented_data
-from optimism.core.fact_event_logs
-where block_timestamp > '2022-12-14'
-and block_timestamp < '2023-01-31'
-and contract_address = '0xee36eaad94d1cc1d0eccadb55c38bffb6be06c77' 
-and topics[0]::string = '0x28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d85'
-),
-decoded_data as (
-select
-block_number,
-block_timestamp,
-tx_hash,
-origin_from_address,
-origin_to_address,
-event_index,
-CONCAT('0x', SUBSTR(topics [1] :: STRING, 27, 40)) AS creator,
-CONCAT('0x', SUBSTR(topics [2] :: STRING, 27, 40)) AS about,
-replace(topics [3] :: STRING,'0x','') as key,
-try_hex_decode_string(key::string) as decoded_key,
-substr(data::string,131,(ethereum.public.udf_hex_to_int(segmented_data[1]::string) * 2)) as val,
-try_hex_decode_string(val::string) as val_text
-from base
-)
-
-select
-  date(block_timestamp) as date,
-  case when origin_to_address = '0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b' then 'Flipside' 
-  when origin_to_address = '0xd34a8775d06d41b36054d59ef2d09a79b7aa1fa2' then 'Clique'
-  else 'Other' end as origin_to_address,
-  count(distinct tx_hash) as num_attestations,
-  count(distinct about) as num_unique_attestation_addresses,
-  num_attestations - num_unique_attestation_addresses as num_duplicate_attestations
-from decoded_data
-group by 1,2
-having num_attestations > 5
-  "
-}
-All_optimist_users <- auto_paginate_query(optimist_users_query, api_key = readLines("api_key.txt"))
-
-```
-
 We can see our attestations grow along side of Clique's. 
 
 In fact we can see the correlation if we overlay the activity of Clique with Flipside!
 
 ```{r, warning = FALSE, message = FALSE}
-plot_ly(data = All_optimist_users[order(All_optimist_users$DATE),], 
-        x = ~as.Date(DATE), 
-        y = ~NUM_ATTESTATIONS,
+plot_ly(data = daily_attestations, 
+        x = ~date, 
+        y = ~num_attestations,
         type = "scatter", 
-        color = ~ORIGIN_TO_ADDRESS,
+        color = ~origin_to_labeled,
         mode = "lines") %>% 
   layout(
-    title = "Number of Attestations Over Time",
+    title = list(text = "Number of Attestations Over Time", y = 0.975),
     xaxis = list(title = "Date"),
     yaxis = list(title = "Number Attestations")
   )
@@ -206,7 +176,6 @@ The third spike can be attributed to airdrop hype. There was a lot of speculuati
 # What Kind of Users Attributed to Flipsides Attestation Tool
 
 Since our attestation tool is based on on-chain activity and allows for the user to attest to their score on-chain, we can take a look at the type of wallets that attested and their individual behaviors!
-
 
 ## Duplicate addresses
 
@@ -247,13 +216,17 @@ select
   count(distinct about) as num_unique_attestation_addresses,
   num_attestations - num_unique_attestation_addresses as num_duplicate_attestations
 from decoded_data
+-- Flipside & Clique only 
 where origin_to_address in ('0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b', '0xd34a8775d06d41b36054d59ef2d09a79b7aa1fa2')
 group by 1,2
-having num_attestations > 5
+
 order by 3 desc
   "
 }
-full_attestation_table <- auto_paginate_query(full_attestation_table_query, api_key = readLines("api_key.txt"))
+
+full_attestation_table <- auto_paginate_query(full_attestation_table_query, 
+                                              api_key = readLines("api_key.txt"))
+
 ```
 
 ```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
@@ -264,6 +237,7 @@ reactable(full_attestation_table)
 When looking at the table above we can see that Flipside did in fact receive quite a few duplicate attestations (almost 9K of our 45K attesations: ~20% of Total), while Clique only received about 500. 
 
 Over time, we can see how duplicates change over time. There isn't any significant change to duplicate submissions. Fairly consistent at about 20%, which is good - demonstrating consistent usage behaviors over time!
+
 ```{r, warning = FALSE, message = FALSE}
 
 duplicates_overtime_query <- {
@@ -293,6 +267,7 @@ substr(data::string,131,(ethereum.public.udf_hex_to_int(segmented_data[1]::strin
 try_hex_decode_string(val::string) as val_text
 from base
 ),
+
 base_duplicates as (
   select
   distinct 
@@ -322,17 +297,20 @@ order by 2,5 asc
   "
 }
 duplicates_overtime_table <- auto_paginate_query(duplicates_overtime_query, api_key = readLines("api_key.txt"))
+
 ```
 
 
 
 ```{r, warning = FALSE, message = FALSE}
-duplicates_overtime_table_grouped = duplicates_overtime_table %>%
-  group_by(DATES, ATTESTATION_TYPE) %>%
-  summarise(count = n_distinct(ADDRESS))
-setDT(duplicates_overtime_table_grouped)
 
-plot_ly(data = duplicates_overtime_table_grouped[order(duplicates_overtime_table_grouped$DATES),], 
+duplicates_overtime_table_grouped <- duplicates_overtime_table %>%
+  group_by(DATES, ATTESTATION_TYPE) %>%
+  summarise(count = n_distinct(ADDRESS)) %>% 
+  arrange(DATES)
+
+
+plot_ly(data = duplicates_overtime_table_grouped, 
         x = ~DATES, 
         y = ~count,
         split = ~ATTESTATION_TYPE,
@@ -393,6 +371,7 @@ base_duplicates as (
   lag(block_timestamp,1) over (partition by about,origin_to_address order by block_timestamp asc) as date_diff,
   lag(val,1) over (partition by about,origin_to_address order by block_timestamp asc) as val_diff
 from decoded_data
+-- Flipside 
 where origin_to_address in ('0xd870a73a32d0b8c34ccf1e6098e9a26977cb605b')
 )
 select 
@@ -409,17 +388,16 @@ order by 1 asc
   "
 }
 reattestation_table <- auto_paginate_query(reattestation_query, api_key = readLines("api_key.txt"))
+
 ```
 
 ```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
-# cat(reattestation_breakout_table) # output the table in a format good for HTML/PDF/docx conversion
 reactable(reattestation_table)
 ```
 
-If we look at reattestations over time, we see that, on average, people who come back to reattest get a higher score by .2 points! this is an encouraging finding because, while there are people who are spamming/botting the attestation, users were incentivised to return to the app and reattest with a higher score after using Optimism in a new way! 
+If we look at reattestations over time, we see that, on average, people who come back to reattest get a higher score by .2 points! this is an encouraging finding because, while there are people who are spamming/botting the attestation, users were incentivized to return to the app and reattest with a higher score after using Optimism in a new way!
 
 This finding is even further emphasized if we split out the spammers/bots from the non spammers/bots
-
 
 ```{r, warning = FALSE, message = FALSE}
 
@@ -485,7 +463,6 @@ reattestation_breakout_table <- auto_paginate_query(reattestation_breakout_query
 ```
 
 ```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
-# cat(reattestation_breakout_table) # output the table in a format good for HTML/PDF/docx conversion
 reactable(reattestation_breakout_table)
 ```
 In this table, we define a patient attestor as someone who waited at least 12 hours before reattesting to our contract, and a quick attestor as someone who does not. 
@@ -493,8 +470,6 @@ In this table, we define a patient attestor as someone who waited at least 12 ho
 With this simple split, we can see the patient attestor increase their score by almost .5 and the quick attestor almost 0! Almost half of the patient attestors increased their score! With 2,700 reattesting after 12 hours, and half getting a higher score - this tool has driven some real traffic to new protocols!
 
 Did our fun on-chain scoring tool inadvertently convince thousands of people to start acting like conscientious blockchain users? 
-
-
 
 ## User Type
 
@@ -615,6 +590,3 @@ Overall, this was a very successful experiment around on-chain scoring tools. In
 With these findings, we will continue to iterate on our scoring apps with ideas such as targeted recommendations for users, fun incentives, and direct goals. 
 
 More fun coming soon <sup>tm</sup>
-
-
-
