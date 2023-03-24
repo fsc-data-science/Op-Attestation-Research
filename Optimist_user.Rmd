@@ -623,6 +623,7 @@ The second, proof of action, is a very important factor - that i think is often 
 This means that there is proof that an address did certain actions, and elected to have their immortalized on chain. It is a bThis makes it easy for protocols to subset users based on scores - it also can help sybil detection algorythms to be more accurate with who is a bot and not. 
 
 Doing something on chain is one thing, doing something on chain and having proof that you did it is another. 
+
 # Conclusion
 
 Overall, this was a very successful experiment around on-chain scoring tools. In the end it seems that rewarding users, either through reputation or monetary gain, encourages users to be more active on chain. However, there is something to be said about having a multi-categoried score available to a user. An NFT maxi who uses an app similar to this and sees a 0 in categories such as governance or defi, may be incentivised to participate in those for the sole purpose of their address not being associated with a 0 score. 
