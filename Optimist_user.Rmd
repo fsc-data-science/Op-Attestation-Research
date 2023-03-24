@@ -232,11 +232,12 @@ order by 3 desc
 full_attestation_table <- read.csv("full_attestation_table_data.csv",
                                colClasses=c("ORIGIN_TO_ADDRESS"="character"))
 colnames(full_attestation_table) <- tolower(colnames(full_attestation_table))
-
+colnames(full_attestation_table) <- c('Contract','Attestation Name', 'Num Attests', 'Num Unique Attests', 'Num Duplicate Attests')
 ```
 
 ```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
-reactable(full_attestation_table)
+reactable(full_attestation_table,
+    resizable = TRUE)
 ```
 
 
@@ -408,14 +409,18 @@ order by 1 asc
 # provided pre-ran 
 reattestation_table <- read.csv("reattestation_table_data.csv")
 colnames(reattestation_table) <- tolower(colnames(reattestation_table))
+reattestation_table <- reattestation_table[,c('attestation_number','number_of_addresses', 'avg_time_between_attests','avg_diff_in_scores')]
+reattestation_table = reattestation_table %>% mutate_at(vars(avg_time_between_attests, avg_diff_in_scores), funs(round(., 2)))
+colnames(reattestation_table) <- c('Attest #','Num Adresses', 'Avg time between Attests', 'Avg Increase in Score')
 
 ```
 
 ```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
-reactable(reattestation_table)
+reactable(reattestation_table,
+    resizable = TRUE)
 ```
 
-If we look at reattestations over time, we see that, on average, people who come back to reattest get a higher score by .2 points! this is an encouraging finding because, while there are people who are spamming/botting the attestation, users were incentivized to return to the app and reattest with a higher score after using Optimism in a new way!
+If we look at reattestations over time (time in this table in terms of minutes), we see that, on average, people who come back to reattest get a higher score by almost .2 points! This is an encouraging finding because, while there are people who are spamming/botting the attestation, users were incentivized to return to the app and reattest with a higher score after using Optimism in a new way! 
 
 This finding is even further emphasized if we split out the spammers/bots from the non spammers/bots
 
@@ -487,13 +492,16 @@ order by 1,2 asc
 # provided pre-ran 
 reattestation_breakout_table <- read.csv("reattestation_table_breakout_data.csv")
 colnames(reattestation_breakout_table) <- tolower(colnames(reattestation_breakout_table))
-
+reattestation_breakout_table <- reattestation_breakout_table[,c('attestation_type', 'attestation_number','number_of_addresses', 'avg_time_between_attests','avg_diff_in_scores')]
+reattestation_breakout_table = reattestation_breakout_table %>% mutate_at(vars(avg_time_between_attests, avg_diff_in_scores), funs(round(., 2)))
+colnames(reattestation_breakout_table) <- c('Attest Type', 'Attest #','Num Adresses', 'Avg time between Attests', 'Avg Increase in Score')
 ```
 
 ```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
-reactable(reattestation_breakout_table)
+reactable(reattestation_breakout_table,
+    resizable = TRUE)
 ```
-In this table, we define a patient attestor as someone who waited at least 12 hours before reattesting to our contract, and a quick attestor as someone who does not. 
+In this table, we define a patient attestor as someone who waited at least 12 hours before reattesting to our contract, and a quick attestor as someone who does not. (Avg time between attests in terms of minutes)
 
 With this simple split, we can see the patient attestor increase their score by almost .5 and the quick attestor almost 0! Almost half of the patient attestors increased their score! With 2,700 reattesting after 12 hours, and half getting a higher score - this tool has driven some real traffic to new protocols!
 
@@ -589,7 +597,8 @@ User_type_table <- read.csv("User_type_table_data.csv")
 ```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
 # cat(reattestation_breakout_table) # output the table in a format good for HTML/PDF/docx conversion
 colnames(User_type_table) = c('Attestation Type','ENS Set %', 'Contract Address %', 'Avg Days Since 1st Tx')
-reactable(User_type_table[order(User_type_table[['ENS Set %']]),])
+reactable(User_type_table[order(User_type_table[['ENS Set %']]),],
+    resizable = TRUE)
 ```
 
 
